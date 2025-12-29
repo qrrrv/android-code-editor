@@ -4,8 +4,16 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import { saveFile, getCurrentFile, getFile } from "@/lib/file-storage";
-import { highlightCode, getTokenColor } from "@/lib/syntax-highlighter";
+import { highlightAdvanced } from "@/lib/advanced-highlighter";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useSettings } from "@/lib/settings-context";
+import { t } from "@/lib/i18n";
+import {
+  handleBracketCompletion,
+  handleClosingBracket,
+  handleAutoIndent,
+  detectLanguage,
+} from "@/lib/code-editor-utils";
 
 interface CodeFile {
   id: string;
@@ -18,13 +26,16 @@ export default function EditorScreen() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-  const [code, setCode] = useState("// Welcome to Code Editor\n// Start typing your code here...\n\nfunction hello() {\n  console.log('Hello, World!');\n}\n");
+  const { settings } = useSettings();
+
+  const [code, setCode] = useState(
+    "// " + t("editor.welcome", settings.language) + "\n// " + t("editor.startTyping", settings.language) + "\n\nfunction hello() {\n  console.log('Hello, World!');\n}\n"
+  );
   const [fileName, setFileName] = useState("untitled.js");
   const [fileId, setFileId] = useState<string>("");
   const [language, setLanguage] = useState("javascript");
-  const [lineNumbers, setLineNumbers] = useState(true);
-  const [fontSize, setFontSize] = useState(14);
   const [isSaved, setIsSaved] = useState(true);
+  const [cursorPos, setCursorPos] = useState(0);
 
   // Load current file on mount
   useEffect(() => {
@@ -36,7 +47,8 @@ export default function EditorScreen() {
           setFileId(file.id);
           setFileName(file.name);
           setCode(file.content);
-          setLanguage(file.language);
+          const detectedLang = detectLanguage(file.name);
+          setLanguage(detectedLang);
           setIsSaved(true);
         }
       }
@@ -72,7 +84,34 @@ export default function EditorScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
+  const handleCodeChange = (text: string) => {
+    setCode(text);
+    setIsSaved(false);
+  };
+
+  const handleKeyPress = (char: string) => {
+    if (char === "\n") {
+      // Handle auto-indent on new line
+      const result = handleAutoIndent(code, cursorPos, settings.tabSize);
+      setCode(result.text);
+      setCursorPos(result.cursorPosition);
+    } else if (char in { "(": 1, "[": 1, "{": 1, '"': 1, "'": 1, "`": 1 }) {
+      // Handle bracket completion
+      const result = handleBracketCompletion(code, cursorPos, char);
+      setCode(result.text);
+      setCursorPos(result.cursorPosition);
+    } else if (char in { ")": 1, "]": 1, "}": 1 }) {
+      // Handle closing bracket
+      const result = handleClosingBracket(code, cursorPos, char);
+      setCode(result.text);
+      setCursorPos(result.cursorPosition);
+    }
+  };
+
   const codeLines = code.split("\n");
+  const highlightedTokens = settings.syntaxHighlight
+    ? highlightAdvanced(code, language, isDark)
+    : [];
 
   return (
     <ScreenContainer className="bg-background flex-1" edges={["top", "left", "right"]}>
@@ -83,20 +122,21 @@ export default function EditorScreen() {
           {!isSaved && <Text className="text-xs text-warning">●</Text>}
         </View>
         <Text className="text-xs text-muted mt-1">
-          Line {codeLines.length} • {code.length} chars • {language}
+          {t("editor.line", settings.language)} {codeLines.length} • {code.length}{" "}
+          {t("editor.chars", settings.language)} • {language}
         </Text>
       </View>
 
       {/* Code Editor */}
       <View className="flex-1 flex-row bg-background">
         {/* Line Numbers */}
-        {lineNumbers && (
+        {settings.lineNumbers && (
           <View className="bg-surface border-r border-border px-2 py-4 justify-start">
             {codeLines.map((_, index) => (
               <Text
                 key={index}
                 className="text-xs text-muted font-mono"
-                style={{ height: fontSize * 1.5 }}
+                style={{ height: settings.fontSize * 1.5 }}
               >
                 {index + 1}
               </Text>
@@ -107,19 +147,17 @@ export default function EditorScreen() {
         {/* Code Input */}
         <TextInput
           value={code}
-          onChangeText={(text) => {
-            setCode(text);
-            setIsSaved(false);
-          }}
+          onChangeText={handleCodeChange}
+          onSelectionChange={(e) => setCursorPos(e.nativeEvent.selection.start)}
           multiline
-          placeholder="Enter your code here..."
+          placeholder={t("editor.startTyping", settings.language)}
           placeholderTextColor={colors.muted}
           className="flex-1 px-4 py-4 text-foreground font-mono"
           style={{
-            fontSize,
+            fontSize: settings.fontSize,
             color: colors.foreground,
             backgroundColor: colors.background,
-            lineHeight: fontSize * 1.5,
+            lineHeight: settings.fontSize * 1.5,
           }}
           scrollEnabled
         />
@@ -139,7 +177,7 @@ export default function EditorScreen() {
               },
             ]}
           >
-            <Text className="text-xs font-semibold text-primary">↶ Undo</Text>
+            <Text className="text-xs font-semibold text-primary">↶ {t("editor.undo", settings.language)}</Text>
           </Pressable>
 
           <Pressable
@@ -153,7 +191,7 @@ export default function EditorScreen() {
               },
             ]}
           >
-            <Text className="text-xs font-semibold text-primary">↷ Redo</Text>
+            <Text className="text-xs font-semibold text-primary">↷ {t("editor.redo", settings.language)}</Text>
           </Pressable>
         </View>
 
@@ -169,7 +207,9 @@ export default function EditorScreen() {
             },
           ]}
         >
-          <Text className="text-xs font-semibold text-background">{isSaved ? "✓ Saved" : "Save"}</Text>
+          <Text className="text-xs font-semibold text-background">
+            {isSaved ? "✓ " + t("editor.saved", settings.language) : t("editor.save", settings.language)}
+          </Text>
         </Pressable>
       </View>
     </ScreenContainer>

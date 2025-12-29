@@ -44,3 +44,13 @@
 - [ ] Test on various screen sizes
 - [ ] Performance optimization
 - [ ] Bug fixes and refinements
+
+## New Features Requested
+- [ ] Advanced syntax highlighting with proper color coding
+- [ ] Russian language support in UI and settings
+- [ ] File manager integration to open files
+- [ ] Support for custom file extensions
+- [ ] Auto-bracket completion (like VS Code)
+- [ ] Auto-quote completion
+- [ ] Auto-indentation improvements
+- [ ] Source code delivery package

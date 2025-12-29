@@ -4,26 +4,24 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import * as Haptics from "expo-haptics";
+import { useSettings } from "@/lib/settings-context";
+import { t, type Language } from "@/lib/i18n";
 
 export default function SettingsScreen() {
   const colors = useColors();
   const colorScheme = useColorScheme();
-  const [fontSize, setFontSize] = useState(14);
-  const [fontFamily, setFontFamily] = useState("monospace");
-  const [lineNumbers, setLineNumbers] = useState(true);
-  const [syntaxHighlight, setSyntaxHighlight] = useState(true);
-  const [autoSave, setAutoSave] = useState(true);
-  const [theme, setTheme] = useState(colorScheme || "light");
+  const { settings, updateSettings } = useSettings();
 
   const fontSizes = [12, 14, 16, 18, 20, 24];
   const fontFamilies = ["Monospace", "Courier", "Roboto Mono"];
+  const languages: Language[] = ["en", "ru"];
 
   const handleToggle = useCallback(
-    (setter: (value: boolean) => void, currentValue: boolean) => {
+    async (key: keyof typeof settings, currentValue: boolean) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setter(!currentValue);
+      await updateSettings({ [key]: !currentValue });
     },
-    []
+    [updateSettings]
   );
 
   const SettingRow = ({
@@ -75,38 +73,83 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
         {/* Header */}
         <View className="bg-surface border-b border-border px-4 py-4">
-          <Text className="text-2xl font-bold text-foreground">Settings</Text>
+          <Text className="text-2xl font-bold text-foreground">{t("settings.title", settings.language)}</Text>
+        </View>
+
+        {/* Language Section */}
+        <View className="mt-4">
+          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">
+            {t("settings.language", settings.language)}
+          </Text>
+          <View className="bg-surface">
+            <View className="px-4 py-3 gap-2 flex-row">
+              {languages.map((lang) => (
+                <Pressable
+                  key={lang}
+                  onPress={() => {
+                    updateSettings({ language: lang });
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={({ pressed }) => [
+                    {
+                      flex: 1,
+                      backgroundColor: settings.language === lang ? colors.primary : colors.background,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      borderRadius: 6,
+                      opacity: pressed ? 0.8 : 1,
+                      borderWidth: settings.language === lang ? 0 : 1,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    className="text-sm font-semibold text-center capitalize"
+                    style={{
+                      color: settings.language === lang ? colors.background : colors.foreground,
+                    }}
+                  >
+                    {lang === "en" ? "English" : "Русский"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </View>
 
         {/* Editor Section */}
         <View className="mt-4">
-          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">Editor</Text>
+          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">
+            {t("settings.editor", settings.language)}
+          </Text>
           <View className="bg-surface">
             <ToggleRow
-              label="Line Numbers"
-              value={lineNumbers}
-              onToggle={() => handleToggle(setLineNumbers, lineNumbers)}
+              label={t("settings.lineNumbers", settings.language)}
+              value={settings.lineNumbers}
+              onToggle={() => handleToggle("lineNumbers", settings.lineNumbers)}
             />
             <ToggleRow
-              label="Syntax Highlighting"
-              value={syntaxHighlight}
-              onToggle={() => handleToggle(setSyntaxHighlight, syntaxHighlight)}
+              label={t("settings.syntaxHighlight", settings.language)}
+              value={settings.syntaxHighlight}
+              onToggle={() => handleToggle("syntaxHighlight", settings.syntaxHighlight)}
             />
             <ToggleRow
-              label="Auto Save"
-              value={autoSave}
-              onToggle={() => handleToggle(setAutoSave, autoSave)}
+              label={t("settings.autoSave", settings.language)}
+              value={settings.autoSave}
+              onToggle={() => handleToggle("autoSave", settings.autoSave)}
             />
           </View>
         </View>
 
         {/* Font Section */}
         <View className="mt-4">
-          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">Font</Text>
+          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">
+            {t("settings.font", settings.language)}
+          </Text>
           <View className="bg-surface">
             <SettingRow
-              label="Font Size"
-              value={`${fontSize}pt`}
+              label={t("settings.fontSize", settings.language)}
+              value={`${settings.fontSize}pt`}
               onPress={() => {}}
             />
             <View className="px-4 py-3 border-b border-border flex-row gap-2 flex-wrap">
@@ -114,12 +157,12 @@ export default function SettingsScreen() {
                 <Pressable
                   key={size}
                   onPress={() => {
-                    setFontSize(size);
+                    updateSettings({ fontSize: size });
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   style={({ pressed }) => [
                     {
-                      backgroundColor: fontSize === size ? colors.primary : colors.background,
+                      backgroundColor: settings.fontSize === size ? colors.primary : colors.background,
                       paddingHorizontal: 12,
                       paddingVertical: 6,
                       borderRadius: 6,
@@ -130,7 +173,7 @@ export default function SettingsScreen() {
                   <Text
                     className="text-xs font-semibold"
                     style={{
-                      color: fontSize === size ? colors.background : colors.foreground,
+                      color: settings.fontSize === size ? colors.background : colors.foreground,
                     }}
                   >
                     {size}
@@ -140,8 +183,8 @@ export default function SettingsScreen() {
             </View>
 
             <SettingRow
-              label="Font Family"
-              value={fontFamily}
+              label={t("settings.fontFamily", settings.language)}
+              value={settings.fontFamily}
               onPress={() => {}}
             />
             <View className="px-4 py-3 border-b border-border gap-2">
@@ -149,17 +192,17 @@ export default function SettingsScreen() {
                 <Pressable
                   key={family}
                   onPress={() => {
-                    setFontFamily(family);
+                    updateSettings({ fontFamily: family });
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   style={({ pressed }) => [
                     {
-                      backgroundColor: fontFamily === family ? colors.primary : colors.background,
+                      backgroundColor: settings.fontFamily === family ? colors.primary : colors.background,
                       paddingHorizontal: 12,
                       paddingVertical: 8,
                       borderRadius: 6,
                       opacity: pressed ? 0.8 : 1,
-                      borderWidth: fontFamily === family ? 0 : 1,
+                      borderWidth: settings.fontFamily === family ? 0 : 1,
                       borderColor: colors.border,
                     },
                   ]}
@@ -167,7 +210,7 @@ export default function SettingsScreen() {
                   <Text
                     className="text-sm font-semibold"
                     style={{
-                      color: fontFamily === family ? colors.background : colors.foreground,
+                      color: settings.fontFamily === family ? colors.background : colors.foreground,
                       fontFamily: family.toLowerCase(),
                     }}
                   >
@@ -181,25 +224,27 @@ export default function SettingsScreen() {
 
         {/* Theme Section */}
         <View className="mt-4">
-          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">Theme</Text>
+          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">
+            {t("settings.theme", settings.language)}
+          </Text>
           <View className="bg-surface">
             <View className="px-4 py-3 gap-2 flex-row">
-              {["light", "dark"].map((t) => (
+              {["light", "dark"].map((t_val) => (
                 <Pressable
-                  key={t}
+                  key={t_val}
                   onPress={() => {
-                    setTheme(t as "light" | "dark");
+                    updateSettings({ theme: t_val as "light" | "dark" });
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   style={({ pressed }) => [
                     {
                       flex: 1,
-                      backgroundColor: theme === t ? colors.primary : colors.background,
+                      backgroundColor: settings.theme === t_val ? colors.primary : colors.background,
                       paddingHorizontal: 12,
                       paddingVertical: 10,
                       borderRadius: 6,
                       opacity: pressed ? 0.8 : 1,
-                      borderWidth: theme === t ? 0 : 1,
+                      borderWidth: settings.theme === t_val ? 0 : 1,
                       borderColor: colors.border,
                     },
                   ]}
@@ -207,10 +252,10 @@ export default function SettingsScreen() {
                   <Text
                     className="text-sm font-semibold text-center capitalize"
                     style={{
-                      color: theme === t ? colors.background : colors.foreground,
+                      color: settings.theme === t_val ? colors.background : colors.foreground,
                     }}
                   >
-                    {t}
+                    {t_val === "light" ? t("theme.light", settings.language) : t("theme.dark", settings.language)}
                   </Text>
                 </Pressable>
               ))}
@@ -220,12 +265,16 @@ export default function SettingsScreen() {
 
         {/* About Section */}
         <View className="mt-4">
-          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">About</Text>
+          <Text className="text-xs font-bold text-muted px-4 py-2 uppercase">
+            {t("settings.about", settings.language)}
+          </Text>
           <View className="bg-surface px-4 py-4">
             <Text className="text-sm text-foreground font-semibold">Code Editor</Text>
-            <Text className="text-xs text-muted mt-1">Version 1.0.0</Text>
+            <Text className="text-xs text-muted mt-1">
+              {t("settings.version", settings.language)}: 2.0.0
+            </Text>
             <Text className="text-xs text-muted mt-4">
-              A beautiful code editor for Android with syntax highlighting, file management, and modern design.
+              {t("settings.description", settings.language)}
             </Text>
           </View>
         </View>
