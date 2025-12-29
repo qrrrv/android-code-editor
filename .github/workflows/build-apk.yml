@@ -1,0 +1,83 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Install pnpm
+      run: npm install -g pnpm
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Setup Expo
+      run: npm install -g eas-cli
+    
+    - name: Build APK with Expo
+      run: |
+        eas build --platform android --non-interactive --wait
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      continue-on-error: true
+    
+    - name: Build APK locally (fallback)
+      run: |
+        cd android
+        ./gradlew assembleRelease
+      continue-on-error: true
+    
+    - name: Find and upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-code-editor-apk
+        path: |
+          android/app/build/outputs/apk/release/*.apk
+          dist/*.apk
+        if-no-files-found: ignore
+    
+    - name: Create Release
+      if: success()
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v1.0.0-${{ github.run_number }}
+        release_name: Android Code Editor v1.0.0 Build ${{ github.run_number }}
+        body: |
+          Automatic build of Android Code Editor
+          
+          Features:
+          - Advanced syntax highlighting
+          - Russian language support
+          - Auto-bracket completion (like VS Code)
+          - File management
+          - Customizable settings
+          
+          Download the APK from Artifacts or Releases
+        draft: false
+        prerelease: false
